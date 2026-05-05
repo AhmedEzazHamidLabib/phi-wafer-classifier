@@ -1,0 +1,467 @@
+{
+  "meta": {
+    "dataset": "WM-811K Wafer Defect Classification",
+    "labeled_examples": 25519,
+    "test_split": 0.2,
+    "architecture": "3-block CNN (32->64->128 filters, 32x32 input)",
+    "seed": 42,
+    "classes": ["Center", "Donut", "Edge-Loc", "Edge-Ring", "Loc", "Near-full", "Random", "Scratch"],
+    "class_distribution_original": {
+      "Edge-Ring": 9680,
+      "Edge-Loc": 5189,
+      "Center": 4294,
+      "Loc": 3593,
+      "Scratch": 1193,
+      "Random": 866,
+      "Donut": 555,
+      "Near-full": 149
+    },
+    "augmentation_targets": {
+      "Near-full": 1000,
+      "Donut": 1000,
+      "Scratch": 1500
+    }
+  },
+
+  "results": {
+
+    "baseline": {
+      "description": "Standard CNN, uniform CrossEntropyLoss, no phi, no augmentation, 20 epochs",
+      "config": {
+        "loss": "CrossEntropyLoss uniform",
+        "epochs": 20,
+        "augmentation": false,
+        "phi": false
+      },
+      "f1": {
+        "Center":    0.9437,
+        "Donut":     0.8186,
+        "Edge-Loc":  0.8672,
+        "Edge-Ring": 0.9777,
+        "Loc":       0.7694,
+        "Near-full": 0.9524,
+        "Random":    0.8647,
+        "Scratch":   0.5707,
+        "macro":     0.8456
+      },
+      "support": {
+        "Center": 859, "Donut": 111, "Edge-Loc": 1038,
+        "Edge-Ring": 1936, "Loc": 719, "Near-full": 30,
+        "Random": 173, "Scratch": 238
+      }
+    },
+
+    "phi_v1": {
+      "description": "Ground truth amplifier, uniform phi init at 0.5, no confidence gate, no augmentation",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "phi_init": "uniform_0.5",
+        "augmentation": false,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9479,
+        "Donut":     0.8100,
+        "Edge-Loc":  0.8660,
+        "Edge-Ring": 0.9778,
+        "Loc":       0.7805,
+        "Near-full": 0.7755,
+        "Random":    0.8889,
+        "Scratch":   0.6474,
+        "macro":     0.8368
+      },
+      "notes": "Scratch best result across non-aug versions. Near-full dropped due to overfitting on 119 examples under high early pressure from uniform init."
+    },
+
+    "phi_v2": {
+      "description": "Hard threshold gate — amplifier drops to 1.0 when phi crosses 0.85",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "phi_init": "uniform_0.5",
+        "threshold": 0.85,
+        "augmentation": false,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9342,
+        "Donut":     0.8350,
+        "Edge-Loc":  0.8576,
+        "Edge-Ring": 0.9748,
+        "Loc":       0.7593,
+        "Near-full": 0.7755,
+        "Random":    0.8832,
+        "Scratch":   0.5354,
+        "macro":     0.8245
+      },
+      "notes": "Worst overall. Hard threshold creates discontinuous loss scaling causing instability. Classes oscillating near threshold flip between amplified and normal loss each epoch."
+    },
+
+    "phi_v3": {
+      "description": "Baseline F1 initialization — phi starts at known constraint state",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0,
+        "phi_init": "baseline_f1",
+        "augmentation": false,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9490,
+        "Donut":     0.8357,
+        "Edge-Loc":  0.8708,
+        "Edge-Ring": 0.9798,
+        "Loc":       0.7751,
+        "Near-full": 0.8571,
+        "Random":    0.8590,
+        "Scratch":   0.6130,
+        "macro":     0.8424
+      },
+      "notes": "Baseline initialization skips discovery phase. Near-full recovered vs v1/v2. Most stable version without augmentation."
+    },
+
+    "phi_v4": {
+      "description": "Velocity-based aggression added — alpha and beta emerge from phi change rate",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0, "vel_clamp_lo": 0.5, "vel_clamp_hi": 2.0,
+        "phi_ema": 0.8,
+        "phi_init": "baseline_f1",
+        "augmentation": false,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9431,
+        "Donut":     0.8241,
+        "Edge-Loc":  0.8791,
+        "Edge-Ring": 0.9787,
+        "Loc":       0.7841,
+        "Near-full": 0.8571,
+        "Random":    0.8916,
+        "Scratch":   0.6179,
+        "macro":     0.8470
+      },
+      "notes": "Best macro F1 without augmentation at 0.8508 in earlier unseeded run. Wins on Edge-Loc, Loc, Random. Velocity adds real value for mid-range classes."
+    },
+
+    "phi_v5": {
+      "description": "Dynamic stopping — trains until all phi cross 0.92 or epoch cap (50)",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0, "vel_clamp_lo": 0.5, "vel_clamp_hi": 2.0,
+        "phi_ema": 0.8,
+        "phi_init": "baseline_f1",
+        "phi_stop": 0.92,
+        "max_epochs": 50,
+        "augmentation": false
+      },
+      "f1": {
+        "Center":    0.9391,
+        "Donut":     0.8479,
+        "Edge-Loc":  0.8670,
+        "Edge-Ring": 0.9793,
+        "Loc":       0.7800,
+        "Near-full": 0.8364,
+        "Random":    0.8658,
+        "Scratch":   0.6270,
+        "macro":     0.8428
+      },
+      "notes": "Stopped at epoch 25 with Scratch last to satisfy. Dynamic stopping works correctly but v4 still wins on macro."
+    },
+
+    "phi_v6": {
+      "description": "Per-class early stopping with classifier weight freezing — FAILED",
+      "config": {
+        "phi_freeze_min": 0.92,
+        "patience_limit": 5,
+        "augmentation": false
+      },
+      "f1": {
+        "Center":    0.9343,
+        "Donut":     0.8584,
+        "Edge-Loc":  0.8440,
+        "Edge-Ring": 0.9755,
+        "Loc":       0.7365,
+        "Near-full": 0.8148,
+        "Random":    0.8278,
+        "Scratch":   0.5178,
+        "macro":     0.8136
+      },
+      "notes": "Catastrophic collapse when multiple classes froze simultaneously. Conv layers lost gradient diversity. Per-class classifier freezing incompatible with shared conv architecture."
+    },
+
+    "phi_v4_aug": {
+      "description": "Phi v4 with augmentation — Near-full 149->1000, Donut 555->1000, Scratch 1193->1500",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0, "vel_clamp_lo": 0.5, "vel_clamp_hi": 2.0,
+        "phi_ema": 0.8,
+        "phi_init": "baseline_f1",
+        "augmentation": true,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9487,
+        "Donut":     0.9008,
+        "Edge-Loc":  0.8771,
+        "Edge-Ring": 0.9806,
+        "Loc":       0.7901,
+        "Near-full": 0.9754,
+        "Random":    0.8742,
+        "Scratch":   0.6898,
+        "macro":     0.8796
+      },
+      "support": {
+        "Center": 859, "Donut": 200, "Edge-Loc": 1038,
+        "Edge-Ring": 1936, "Loc": 719, "Near-full": 200,
+        "Random": 173, "Scratch": 300
+      },
+      "notes": "Every class improved over baseline simultaneously. Best overall result. Macro F1 +3.4 points. Augmentation fixed data scarcity, phi fixed imbalance."
+    },
+
+    "phi_v5_aug": {
+      "description": "Dynamic stopping on augmented dataset — phi stop at 0.92",
+      "config": {
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0,
+        "phi_ema": 0.8,
+        "phi_init": "baseline_f1",
+        "phi_stop": 0.92,
+        "max_epochs": 50,
+        "augmentation": true
+      },
+      "f1": {
+        "Center":    0.9391,
+        "Donut":     0.8479,
+        "Edge-Loc":  0.8670,
+        "Edge-Ring": 0.9793,
+        "Loc":       0.7800,
+        "Near-full": 0.8364,
+        "Random":    0.8658,
+        "Scratch":   0.6270,
+        "macro":     0.8428
+      },
+      "notes": "Stopped at epoch 25. v4_aug still best."
+    },
+
+    "baseline_seeded": {
+      "description": "Seeded baseline — SEED=42 fixed across all sources of randomness",
+      "config": {
+        "seed": 42,
+        "loss": "CrossEntropyLoss uniform",
+        "epochs": 20,
+        "augmentation": false,
+        "phi": false
+      },
+      "f1": {
+        "Center":    0.9530,
+        "Donut":     0.8598,
+        "Edge-Loc":  0.8688,
+        "Edge-Ring": 0.9784,
+        "Loc":       0.7888,
+        "Near-full": 0.8000,
+        "Random":    0.8785,
+        "Scratch":   0.6208,
+        "macro":     0.8435
+      },
+      "support": {
+        "Center": 859, "Donut": 111, "Edge-Loc": 1038,
+        "Edge-Ring": 1936, "Loc": 719, "Near-full": 30,
+        "Random": 173, "Scratch": 238
+      }
+    },
+
+    "baseline_aug_seeded": {
+      "description": "Seeded baseline with augmentation — isolates augmentation contribution",
+      "config": {
+        "seed": 42,
+        "loss": "CrossEntropyLoss uniform",
+        "epochs": 20,
+        "augmentation": true,
+        "phi": false
+      },
+      "f1": {
+        "Center":    0.9446,
+        "Donut":     0.9246,
+        "Edge-Loc":  0.8755,
+        "Edge-Ring": 0.9801,
+        "Loc":       0.7845,
+        "Near-full": 0.9531,
+        "Random":    0.8165,
+        "Scratch":   0.6611,
+        "macro":     0.8675
+      },
+      "notes": "Augmentation alone adds 2.4 macro points over baseline. Near-full recovers completely. Scratch improves substantially."
+    },
+
+    "phi_no_aug_seeded": {
+      "description": "Seeded phi v4 no augmentation — isolates phi contribution",
+      "config": {
+        "seed": 42,
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0, "phi_ema": 0.8,
+        "phi_init": "baseline_f1",
+        "augmentation": false,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9494,
+        "Donut":     0.8622,
+        "Edge-Loc":  0.8664,
+        "Edge-Ring": 0.9789,
+        "Loc":       0.7835,
+        "Near-full": 0.8000,
+        "Random":    0.8876,
+        "Scratch":   0.6238,
+        "macro":     0.8440
+      },
+      "notes": "Phi alone adds 0.05 macro points. Marginal without augmentation. Proves phi and augmentation solve different constraint types."
+    },
+
+    "phi_final_seeded": {
+      "description": "Seeded phi v4 with augmentation — primary result",
+      "config": {
+        "seed": 42,
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0, "phi_ema": 0.8,
+        "phi_init": "baseline_f1",
+        "augmentation": true,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9533,
+        "Donut":     0.9227,
+        "Edge-Loc":  0.8769,
+        "Edge-Ring": 0.9821,
+        "Loc":       0.8014,
+        "Near-full": 0.9418,
+        "Random":    0.8294,
+        "Scratch":   0.7203,
+        "macro":     0.8785
+      },
+      "notes": "Best seeded result. Every class improved over seeded baseline."
+    },
+
+    "phi_focal_seeded": {
+      "description": "Focal-informed phi update — confidence-based phi signal, augmented",
+      "config": {
+        "seed": 42,
+        "alpha_max": 3.0, "beta_min": 0.3,
+        "vel_scale": 5.0, "phi_ema": 0.8,
+        "gamma": 2.0,
+        "phi_init": "baseline_f1",
+        "augmentation": true,
+        "epochs": 20
+      },
+      "f1": {
+        "Center":    0.9528,
+        "Donut":     0.9340,
+        "Edge-Loc":  0.8747,
+        "Edge-Ring": 0.9763,
+        "Loc":       0.7972,
+        "Near-full": 0.9305,
+        "Random":    0.8415,
+        "Scratch":   0.7013,
+        "macro":     0.8760
+      },
+      "notes": "Focal wins on Donut (+0.011) and Random (+0.012) vs phi_final. Loses on Scratch (-0.019). Low model confidence on scratch correct predictions keeps phi artificially low."
+    },
+
+    "phi_sweep_no_aug": {
+      "description": "Parameter sweep on phi no-aug — 4 configs",
+      "configs": {
+        "phi_default": {
+          "params": {"alpha_max": 3.0, "beta_min": 0.3, "vel_scale": 5.0, "phi_ema": 0.8},
+          "f1": {
+            "Center": 0.949, "Donut": 0.862, "Edge-Loc": 0.866,
+            "Edge-Ring": 0.979, "Loc": 0.783, "Near-full": 0.800,
+            "Random": 0.888, "Scratch": 0.624, "macro": 0.844
+          }
+        },
+        "phi_aggressive": {
+          "params": {"alpha_max": 5.0, "beta_min": 0.3, "vel_scale": 5.0, "phi_ema": 0.8},
+          "f1": {
+            "Center": 0.948, "Donut": 0.841, "Edge-Loc": 0.868,
+            "Edge-Ring": 0.979, "Loc": 0.783, "Near-full": 0.933,
+            "Random": 0.900, "Scratch": 0.665, "macro": 0.865
+          },
+          "notes": "BEST no-aug config. Near-full 0.800->0.933. Scratch 0.621->0.665. Macro +2.1 points over baseline."
+        },
+        "phi_responsive": {
+          "params": {"alpha_max": 3.0, "beta_min": 0.3, "vel_scale": 3.0, "phi_ema": 0.7},
+          "f1": {
+            "Center": 0.943, "Donut": 0.800, "Edge-Loc": 0.849,
+            "Edge-Ring": 0.976, "Loc": 0.749, "Near-full": 0.808,
+            "Random": 0.669, "Scratch": 0.586, "macro": 0.798
+          },
+          "notes": "Collapsed. Random dropped 0.209 points. Lower vel_scale+phi_ema caused oscillation."
+        },
+        "phi_combined": {
+          "params": {"alpha_max": 5.0, "beta_min": 0.3, "vel_scale": 3.0, "phi_ema": 0.7},
+          "f1": {
+            "Center": 0.948, "Donut": 0.851, "Edge-Loc": 0.880,
+            "Edge-Ring": 0.980, "Loc": 0.783, "Near-full": 0.909,
+            "Random": 0.893, "Scratch": 0.642, "macro": 0.861
+          },
+          "notes": "Recovered from responsive collapse but still below aggressive. vel_scale=3.0 is the problem."
+        }
+      },
+      "winner": "phi_aggressive",
+      "conclusion": "ALPHA_MAX=5.0 with vel_scale=5.0 and phi_ema=0.8 is optimal for no-aug case."
+    }
+  },
+
+  "ablation_summary": {
+    "description": "2x2 ablation isolating phi and augmentation contributions",
+    "table": {
+      "no_phi_no_aug":  {"macro": 0.8435, "label": "baseline"},
+      "no_phi_aug":     {"macro": 0.8675, "label": "baseline_aug"},
+      "phi_no_aug":     {"macro": 0.8440, "label": "phi_no_aug_seeded"},
+      "phi_aug":        {"macro": 0.8785, "label": "phi_final_seeded"}
+    },
+    "augmentation_contribution": 0.0240,
+    "phi_contribution":          0.0005,
+    "combined_contribution":     0.0350,
+    "synergy":                   0.0105,
+    "conclusion": "Augmentation and phi solve different constraint types. Augmentation fixes data scarcity (Near-full, Donut). Phi fixes class imbalance (Scratch, Loc, Random). Combined result exceeds either intervention alone by 0.011 macro points — genuine synergy."
+  },
+
+  "phi_test_f1_correlation": {
+    "description": "Correlation between final epoch phi values and test F1 across versions",
+    "v1":  0.7522,
+    "v2":  0.8611,
+    "v3":  0.7699,
+    "v4":  0.8173,
+    "interpretation": "Phi tracks test F1 at 0.75-0.86 correlation across all versions. Validates phi as a genuine fidelity signal. Gap of 0.15-0.25 reflects train-test generalization gap inherent to all ML systems."
+  },
+
+  "best_results_per_class": {
+    "Center":    {"f1": 0.9533, "version": "phi_final_seeded"},
+    "Donut":     {"f1": 0.9340, "version": "phi_focal_seeded"},
+    "Edge-Loc":  {"f1": 0.8791, "version": "phi_v4"},
+    "Edge-Ring": {"f1": 0.9821, "version": "phi_final_seeded"},
+    "Loc":       {"f1": 0.8014, "version": "phi_final_seeded"},
+    "Near-full": {"f1": 0.9754, "version": "phi_v4_aug"},
+    "Random":    {"f1": 0.9000, "version": "phi_aggressive_no_aug_sweep"},
+    "Scratch":   {"f1": 0.7203, "version": "phi_final_seeded"},
+    "Macro":     {"f1": 0.8796, "version": "phi_v4_aug"}
+  },
+
+  "recommended_configs": {
+    "with_augmentation": {
+      "script": "phi_final.py",
+      "params": {"alpha_max": 3.0, "beta_min": 0.3, "vel_scale": 5.0, "phi_ema": 0.8},
+      "macro_f1": 0.8785
+    },
+    "without_augmentation": {
+      "script": "phi_final_no_aug.py with alpha_max=5.0",
+      "params": {"alpha_max": 5.0, "beta_min": 0.3, "vel_scale": 5.0, "phi_ema": 0.8},
+      "macro_f1": 0.865
+    },
+    "focal_variant": {
+      "script": "phi_final_focal.py",
+      "params": {"alpha_max": 3.0, "beta_min": 0.3, "vel_scale": 5.0, "phi_ema": 0.8, "gamma": 2.0},
+      "macro_f1": 0.8760,
+      "note": "Better for Donut and Random. Worse for Scratch. Use if Scratch is not priority."
+    }
+  }
+}

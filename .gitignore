@@ -1,0 +1,22 @@
+# data files — too large for GitHub
+*.pkl
+*.pt
+
+# environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# jupyter
+.ipynb_checkpoints/
